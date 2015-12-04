@@ -1,0 +1,172 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import sys
+import re
+import time
+import datetime
+import subprocess
+import functools
+
+from signal import signal, SIGPIPE, SIG_DFL
+signal(SIGPIPE,SIG_DFL)
+
+from logging import getLogger, basicConfig
+logger = getLogger(__name__)
+logcfg = {
+   #"format": "%(asctime)s.%(msecs).03d %(process)d %(thread)x %(levelname).4s;%(module)s(%(lineno)d/%(funcName)s) %(message)s",
+   "format": "%(message)s",
+   "datefmt": "%Y/%m/%dT%H:%M:%S",
+   "level": 10,
+   "stream": sys.stderr,
+}
+basicConfig(**logcfg)
+
+def traclog( f ):
+    @functools.wraps(f)
+    def _f(*args, **kwargs):
+        logger.debug("ENTER:{0} {1}".format( f.__name__, kwargs if kwargs else args))
+        result = f(*args, **kwargs)
+        logger.debug("RETRN:{0} {1}".format( f.__name__, result))
+        return result
+    return _f
+
+reg_strs=[
+    #    Linux 2.6.32-431.17.1.el6.x86_64 (jpn-zaq50) \t06/23/2015 \t_x86_64_\t(4 CPU)
+    #    Linux 2.6.32-431.17.1.el6.x86_64 (jpn-zaq50)    04/17/15        _x86_64_        (4 CPU)
+    #15:27:24        CPU      %usr     %nice      %sys   %iowait    %steal      %irq     %soft    %guest     %idle
+    #15:27:26        all     36.56      0.00     24.25      0.00      0.00      0.00      0.00      1.13     38.07
+    "^(?P<time>\d{2}:\d{2}:\d{2}) (?P<noon>AM|PM){0,1}\s+(?P<cols>(\S*[^\s0-9\.\-\+]\S*\s+){0,}\S*[^\s0-9\.\-\+]\S*)\s*$",
+    "^(?P<time>\d{2}:\d{2}:\d{2}) (?P<noon>AM|PM){0,1}\s+(?P<vals>(\S+\s+){0,}[0-9\.\-\+]+)\s*$",
+    "^(?P<junk>Average:.*)\s*$",
+    "^\s*(?P<uname>Linux\s+\S+)\s+(?P<host>\S+)\s+(?P<date>\S+)\s+\S+\s+\((?P<numcpu>\d+)\s+CPU\)\s*$",
+]
+
+def sar_datetime(start_date):
+    """
+    >>> import sar_datetime
+    >>> gen=sar_datetime.sar_datetime("06/02/2015")
+    >>> next(gen)
+    '2015-06-02 00:00:00'
+    >>> gen.send("12:00:00")
+    '2015-06-02 12:00:00'
+    >>> gen.send("13:00:00")
+    '2015-06-02 13:00:00'
+    >>> gen.send("00:00:00")
+    '2015-06-03 00:00:00'
+    """
+    current_date=None
+    for fmt in ["%m/%d/%y", "%m/%d/%Y"]:
+        try:
+            current_date=datetime.datetime.strptime(start_date, fmt)
+            break
+        except ValueError as e:
+            pass
+
+    current_time=datetime.datetime.strptime("00:00:00", "%H:%M:%S")
+    while True:
+        timestr = ( yield "{0}T{1}".format(current_date.strftime("%Y-%m-%d"),current_time.strftime("%H:%M:%S")) )
+        if not timestr:
+            continue
+        if not timestr[1]:
+            raw_time = datetime.datetime.strptime(timestr[0], "%H:%M:%S")
+        else:
+            raw_time = datetime.datetime.strptime("{0} {1}".format(*timestr), "%I:%M:%S %p") 
+        if raw_time < current_time:
+            current_date+=datetime.timedelta(days=1)
+        current_time = raw_time
+
+def loop_interval():
+    pass
+
+
+def loop_sar(iter,regs,excludes):
+    exset=set(excludes)
+    timeit=sar_datetime(time.strftime("%m/%d/%Y"))
+    timeit.next()
+    d={}
+    for l in iter:
+        logger.debug(l)
+        for reg in regs:
+            match=reg.search(l) 
+            if not match or "junk" in match.groupdict(): continue
+            if "cols" in match.groupdict(): d={}
+            d.update(match.groupdict())
+            if 'vals' in d:
+                cols=d['cols'].split()
+                if set(cols) & exset : continue
+                yield dict([('time',timeit.send((d['time'],d['noon'])))]+[(k,v) for k,v in zip(cols,d['vals'].split())])
+            if 'date' in d:
+                timeit=sar_datetime(time.strftime(d['date'])) 
+                timeit.next()
+            break
+
+@traclog
+def loop_pipeline(pipe):
+    while True:
+        rawline= pipe.stdout.readline().strip()
+        logger.debug("pipe.poll()={0}".format(pipe.poll()))
+        if not rawline and pipe.poll()==0: return
+        yield rawline
+
+def take_subkey(p, subkeyset):
+    for d in p:
+        foundkey=list(subkeyset & set(d.keys()))
+        if foundkey:
+            yield dict([(k,v) if k=="time" else ("{0}_{1}.{2}".format(foundkey[0],d[foundkey[0]],k),v) for (k,v) in d.items() if not k in list(subkeyset)])
+        else:
+            yield d
+        
+
+def showdict(d):
+    return " ".join([d["time"]]+["{0}={1}".format(k,v) for (k,v) in d.items() if not k == "time"])
+
+def timechanged():
+    rslt=False
+    otime=None
+    while True:
+        ctime=yield rslt
+        rslt=False
+        if otime and ctime != otime:
+            rslt=True
+        otime=ctime
+
+@traclog
+def main(opts):
+    cmd="LANG=C sar {0} -A {1}".format("" if not opts["output"] else "-o {0}".format(opts["output"]), opts["interval"])
+    p=subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE) 
+    i_pipe=loop_sar(loop_pipeline(p),[re.compile(x) for x in reg_strs],opts['excludes'].split(','))
+    i_subkey=take_subkey(i_pipe, set(opts["subkeys"].split(",")))
+    timechk=timechanged()
+    timechk.next()
+
+    columns=[]
+    for l in i_subkey:
+        if timechk.send(l["time"]): break
+        for pair in [x for x in l.items() if x[0] !="time"]:
+            columns.append((pair[0],[pair[1]]))
+    print columns
+
+
+def parsed_opts():
+    import optparse
+    import os
+
+    opt = optparse.OptionParser()
+    opt.add_option("-P", "--prof", default=False, action="store_true", help="get profile [default: %default]" )
+    opt.add_option("-L", "--loglevel", default=15, type="int", help="15:info, 10:debug, 5:trace [default: %default]" )
+    opt.add_option("-i", "--interval", default=10, type="int", help="interval to sampling [default: %default]" )
+    opt.add_option("-o", "--output", default=None, help="output to sar binary file[default: %default]" )
+    opt.add_option("-E", "--excludes", default="INTR,MHz", help="[default: %default]" )
+    opt.add_option("-s", "--subkeys", default="CPU,DEV,IFACE", help="[default: %default]" )
+    (opts, args)= opt.parse_args()
+    return dict(vars(opts).items() + [("args", args)])
+
+if __name__ == '__main__':
+    opts = parsed_opts()
+    logger.setLevel(opts['loglevel'])
+    if opts['prof']:
+      import cProfile
+      cProfile.run('main(opts)')
+      sys.exit(0)
+    main(opts)

@@ -1,0 +1,26 @@
+
+set title 'tests(x)'
+
+set xlabel 'dd HH:MM'
+set xtics rotate by -90
+
+set ylabel 'value(unit)'
+
+set xdata time
+set timefmt "%Y-%m-%dT%H:%M:%S"
+set format x "%d %H:%M"
+
+set terminal png font "DejaVuSans,9"
+set output 'gnuplot.png'
+
+set yrange [0:30]
+
+set key outside
+
+set style fill solid 1.0 border -1
+
+#plot   filename using 1:2 with lines title '1st' ,\
+#       filename using 1:3 with lines title '2nd'
+plot   filename using 1:2 with filledcurves y1=0 title '1st' ,\
+       filename using 1:2:($2+$3) with filledcurves title '2nd'    ,\
+       filename using 1:($2+$3):($2+$3+$4) with filledcurves title '3rd'

@@ -1,0 +1,100 @@
+
+#set -g default-terminal "screen-256color-bce"
+set -g default-terminal "xterm-256color"
+
+# View
+set -g status-position top
+bind-key v copy-mode \; display "Copy mode!"
+
+# Option
+setw -g utf8 on
+setw -g mode-keys vi
+setw -g automatic-rename off
+setw -g mode-mouse off
+#set -g mouse-select-pane on
+set -g base-index 1
+
+#set -g default-shell /bin/zsh
+
+# KeyBindings
+unbind l
+unbind ^C
+
+bind c  new-window
+
+bind -r C-h resize-pane -L 6 
+bind -r C-l resize-pane -R 6
+bind -r C-j resize-pane -D 6
+bind -r C-k resize-pane -U 6
+bind -r s swap-pane -U
+
+bind e set-window-option synchronize-panes on
+bind E set-window-option synchronize-panes off
+
+bind h select-pane -L
+bind j select-pane -D
+bind k select-pane -U
+bind l select-pane -R
+
+bind b send-prefix
+
+# View of status
+set -g status on
+set -g status-interval 5
+set -g status-utf8 on
+
+set -g status-attr none
+set -g status-bg magenta
+
+set -g status-fg black
+
+set -g status-justify left
+set -g status-position bottom
+
+set -g status-left "[#S:#I.#P] "
+set -g status-left-length 10
+set -g status-left-attr none
+set -g status-left-bg default
+set -g status-left-fg default
+
+set -g status-right "#(echo $USER)@#h | %Y-%m-%d %H:%M:%S"
+set -g status-right-length 40
+set -g status-right-attr none
+set -g status-right-bg default
+set -g status-right-fg default
+
+set -gw window-status-format "#F#I:#W"
+set -gw window-status-attr none
+set -gw window-status-bg default
+set -gw window-status-fg default
+
+set -gw window-status-current-format "#(tmux show-window-options synchronize-panes | grep -q 'on$' && echo '#[fg=white,bg=red]')#F#I:#W"
+set -gw window-status-current-attr underscore,bold
+set -gw window-status-current-bg default
+set -gw window-status-current-fg white
+
+set -gw window-status-separator "  "
+
+set -gw window-status-activity-attr reverse
+set -gw window-status-activity-bg default
+set -gw window-status-activity-fg blue
+set -gw window-status-bell-attr reverse
+set -gw window-status-bell-bg default
+set -gw window-status-bell-fg red
+
+set -g message-attr none
+set -g message-bg yellow
+set -g message-fg black
+
+set -g message-command-attr none
+set -g message-command-bg black
+set -g message-command-fg yellow
+
+set -gw mode-attr none
+set -gw mode-bg yellow
+set -gw mode-fg black
+
+set -g pane-active-border-bg default
+set -g pane-active-border-fg green
+set -g pane-border-bg default
+set -g pane-border-fg default
