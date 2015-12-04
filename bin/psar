@@ -81,9 +81,6 @@ def sar_datetime(start_date):
             current_date+=datetime.timedelta(days=1)
         current_time = raw_time
 
-def loop_interval():
-    pass
-
 
 def loop_sar(iter,regs,excludes):
     exset=set(excludes)
@@ -110,15 +107,16 @@ def loop_sar(iter,regs,excludes):
 def loop_pipeline(pipe):
     while True:
         rawline= pipe.stdout.readline().strip()
-        logger.debug("pipe.poll()={0}".format(pipe.poll()))
+        #logger.debug("pipe.poll()={0}".format(pipe.poll()))
         if not rawline and pipe.poll()==0: return
         yield rawline
+
 
 def take_subkey(p, subkeyset):
     for d in p:
         foundkey=list(subkeyset & set(d.keys()))
         if foundkey:
-            yield dict([(k,v) if k=="time" else ("{0}_{1}.{2}".format(foundkey[0],d[foundkey[0]],k),v) for (k,v) in d.items() if not k in list(subkeyset)])
+            yield dict([(k,v) if k=="time" else ("{1}.{0}".format(d[foundkey[0]],k),v) for (k,v) in d.items() if not k in list(subkeyset)])
         else:
             yield d
         
@@ -156,36 +154,38 @@ def init_dat(cfg, dat_first):
                     break
     return dict([(k,dat_first[k]) for k in target]),subindex
 
-def make_subindex(cfg,d):
-    return d 
+def loop_filtered(iter,list_exact,list_ptn):
+    for d in iter:
+        logger.debug("list_exact:{0}".format(list_exact))
+        _l=[(k,v) for (k,v) in d.items() if k in list_exact or k.split(".")[0] in list_ptn]
+        if not _l: continue
+        yield d["time"], _l
 
 def simple_out2(i_d,i_t,cfg):
-    print cfg
     list1=concat(cfg[0].values())
     list2=concat(cfg[1].values())
-    list3=[]
-    print list1,list2
+    i_filtered=loop_filtered(i_d,list1,list2)
     dat={}
     otime=None
     ctime=None
     t_changed=False
     subindex=None
+    labels=[]
     while True:
-        for l in i_d:
-            t_changed = i_t.send(l["time"])
+        for (t,l) in i_filtered:
+            t_changed = i_t.send(t)
             if t_changed:
                 (otime,ctime)=t_changed
                 dat[ctime]={}
-                for (k,v) in [x for x in l.items() if x[0] !="time"]:
-                    dat[ctime][k]=v
-                if not subindex:
-                    subindex=make_subindex(cfg,dat[ctime])
-                break
-            for (k,v) in [x for x in l.items() if x[0] !="time"]:
+            for (k,v) in [x for x in l]:
                 dat[ctime][k]=v
+            if t_changed: break
         if not otime:
             continue
-        logger.info(json.dumps({otime:dat[otime]}))
+        elif not labels:
+            labels=sorted(dat[otime].keys())
+            logger.info(" ".join(["time"]+labels))
+        logger.info(" ".join([otime]+[v for (k,v) in sorted(dat[otime].items())]))
         del(dat[otime])
     return
 
@@ -209,9 +209,6 @@ def simple_out(i_d,i_t):
         logger.info(json.dumps({otime:dat[otime]}))
         del(dat[otime])
     return
-
-
-
 
 @traclog
 def main(opts):

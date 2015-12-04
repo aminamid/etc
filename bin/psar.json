@@ -1,6 +1,6 @@
 [
 {
-  "CPU":["CPU_all.%usr","CPU_all.%sys","CPU_all.%iowait","CPU_all.%idle"],
+  "CPU":["%usr.all","%sys.all","%iowait.all","%idle.all"],
   "Mem":["kbmemused","kbbuffers","kbcached","kbmemfree"],
   "TCP":["atmptf/s","estres/s","retrans/s","isegerr/s","orsts/s"],
   "SCK":["totsck","tcpsck","tcp-tw"]
