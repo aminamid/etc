@@ -161,7 +161,7 @@ def loop_filtered(iter,list_exact,list_ptn):
         if not _l: continue
         yield d["time"], _l
 
-def simple_out2(i_d,i_t,cfg):
+def filtered_out(i_d,i_t,cfg):
     list1=concat(cfg[0].values())
     list2=concat(cfg[1].values())
     i_filtered=loop_filtered(i_d,list1,list2)
@@ -185,9 +185,48 @@ def simple_out2(i_d,i_t,cfg):
         elif not labels:
             labels=sorted(dat[otime].keys())
             logger.info(" ".join(["time"]+labels))
-        logger.info(" ".join([otime]+[v for (k,v) in sorted(dat[otime].items())]))
+        logger.info(" ".join([otime] + [dat[otime][k] for k in labels]))
         del(dat[otime])
     return
+
+def loop_cfg(i_d,i_t,cfg):
+    list1=concat(cfg[0].values())
+    list2=concat(cfg[1].values())
+    i_filtered=loop_filtered(i_d,list1,list2)
+    dat={}
+    otime=None
+    ctime=None
+    t_changed=False
+    subindex=None
+    labels=[]
+    output_groups={}
+    output_files=dict([(k,open("{0}".format(k),"wab")) for k in cfg[0].keys()+cfg[1].keys()])
+    while True:
+        for (t,l) in i_filtered:
+            t_changed = i_t.send(t)
+            if t_changed:
+                (otime,ctime)=t_changed
+                dat[ctime]={}
+            for (k,v) in [x for x in l]:
+                dat[ctime][k]=v
+            if t_changed: break
+        if not otime:
+            continue
+        elif not labels:
+            labels=sorted(dat[otime].keys())
+            logger.info(" ".join(["time"]+labels))
+            for (k,v) in cfg[0].items() + cfg[1].items():
+                output_groups[k]=[l for l in labels if l.split(".")[0] in v]
+                output_files[k].write(" ".join(["time"]+output_groups[k]))
+                output_files[k].write("\n")
+        logger.info(" ".join([otime] + [dat[otime][k] for k in labels]))
+        for (k,v) in output_groups.items():
+            print k,v
+            output_files[k].write(" ".join([otime]+[dat[otime][dk] for dk in v]))
+            output_files[k].write("\n")
+        del(dat[otime])
+    return
+
 
 def simple_out(i_d,i_t):
     dat={}
@@ -212,6 +251,7 @@ def simple_out(i_d,i_t):
 
 @traclog
 def main(opts):
+    testname = opts["testname"] if "testname" in opts else 
 
     cmd="LANG=C sar {0} -A {1}".format("" if not opts["output"] else "-o {0}".format(opts["output"]), opts["interval"])
     p=subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE) 
@@ -224,7 +264,7 @@ def main(opts):
         simple_out(i_subkey,timechk)
         return
 
-    simple_out2(i_subkey,timechk,json.loads(open(opts["cfg"]).read()))
+    loop_cfg(i_subkey,timechk,json.loads(open(opts["cfg"]).read()))
 
 
 def parsed_opts():
@@ -239,6 +279,8 @@ def parsed_opts():
     opt.add_option("-E", "--excludes", default="INTR,MHz", help="[default: %default]" )
     opt.add_option("-s", "--subkeys", default="CPU,DEV,IFACE", help="[default: %default]" )
     opt.add_option("-f", "--cfg", default=None, help="[default: %default]" )
+    opt.add_option("-d", "--directory", default=/tmp/psar, help="[default: %default]" )
+    opt.add_option("-t", "--testname", default=None, help="[default: %default]" )
     (opts, args)= opt.parse_args()
     return dict(vars(opts).items() + [("args", args)])
 
