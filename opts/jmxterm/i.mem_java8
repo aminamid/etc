@@ -1,0 +1,7 @@
+get -d java.lang -b type=Memory HeapMemoryUsage NonHeapMemoryUsage
+get -d java.lang -b name=Par\ Eden\ Space,type=MemoryPool Usage
+get -d java.lang -b name=Par\ Survivor\ Space,type=MemoryPool Usage
+get -d java.lang -b name=CMS\ Old\ Gen,type=MemoryPool Usage
+get -d java.lang -b name=Metaspace,type=MemoryPool Usage
+get -d java.lang -b type=ClassLoading  LoadedClassCount UnloadedClassCount
+

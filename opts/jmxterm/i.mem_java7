@@ -1,0 +1,6 @@
+get -b type=Memory -d java.lang HeapMemoryUsage NonHeapMemoryUsage
+get -b name=CMS\ Perm\ Gen,type=MemoryPool -d java.lang Usage
+get -b name=CMS\ Old\ Gen,type=MemoryPool -d java.lang Usage
+#get -b name=WriteLatency,type=ColumnFamily -d org.apache.cassandra.metrics *
+#get -b name=ReadLatency,type=ColumnFamily -d org.apache.cassandra.metrics *
+#get -b name=RangeLatency,type=ColumnFamily -d org.apache.cassandra.metrics *
