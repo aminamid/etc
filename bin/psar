@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import os
 import sys
 import json
 import re
@@ -189,7 +190,7 @@ def filtered_out(i_d,i_t,cfg):
         del(dat[otime])
     return
 
-def loop_cfg(i_d,i_t,cfg):
+def loop_cfg(i_d,i_t,cfg,testdir,hostname):
     list1=concat(cfg[0].values())
     list2=concat(cfg[1].values())
     i_filtered=loop_filtered(i_d,list1,list2)
@@ -200,7 +201,11 @@ def loop_cfg(i_d,i_t,cfg):
     subindex=None
     labels=[]
     output_groups={}
-    output_files=dict([(k,open("{0}".format(k),"wab")) for k in cfg[0].keys()+cfg[1].keys()])
+    for path in ["{0}/{1}.{2}".format(testdir,hostname,k) for k in cfg[0].keys()+cfg[1].keys()]:
+        if os.path.exists(path):
+            logger.error("{0} is already exists".format(path))
+            sys.exit(-1)
+    output_files=dict([(k,open("{0}/{1}.{2}".format(testdir,hostname,k),"wab")) for k in cfg[0].keys()+cfg[1].keys()])
     while True:
         for (t,l) in i_filtered:
             t_changed = i_t.send(t)
@@ -215,13 +220,16 @@ def loop_cfg(i_d,i_t,cfg):
         elif not labels:
             labels=sorted(dat[otime].keys())
             logger.info(" ".join(["time"]+labels))
-            for (k,v) in cfg[0].items() + cfg[1].items():
+            for (k,v) in cfg[0].items():
+                output_groups[k]=[l for l in labels if l in v]
+                output_files[k].write(" ".join(["time"]+output_groups[k]))
+                output_files[k].write("\n")
+            for (k,v) in cfg[1].items():
                 output_groups[k]=[l for l in labels if l.split(".")[0] in v]
                 output_files[k].write(" ".join(["time"]+output_groups[k]))
                 output_files[k].write("\n")
         logger.info(" ".join([otime] + [dat[otime][k] for k in labels]))
         for (k,v) in output_groups.items():
-            print k,v
             output_files[k].write(" ".join([otime]+[dat[otime][dk] for dk in v]))
             output_files[k].write("\n")
         del(dat[otime])
@@ -251,9 +259,15 @@ def simple_out(i_d,i_t):
 
 @traclog
 def main(opts):
-    testname = opts["testname"] if "testname" in opts else 
+    hostname=os.uname()[1]
+    testname = opts["testname"]
+    testdir="{0}/{1}".format(opts["directory"],testname)
+    try:
+        os.makedirs(testdir)
+    except OSError as e:
+        if e.errno == 17: pass
 
-    cmd="LANG=C sar {0} -A {1}".format("" if not opts["output"] else "-o {0}".format(opts["output"]), opts["interval"])
+    cmd="LANG=C sar {0} -A {1}".format("" if opts["no_sarbin"] else "-o {0}/{1}.sb".format(testdir,hostname), opts["interval"])
     p=subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE) 
     i_pipe=loop_sar(loop_pipeline(p),[re.compile(x) for x in reg_strs],opts['excludes'].split(','))
     i_subkey=take_subkey(i_pipe, set(opts["subkeys"].split(",")))
@@ -264,7 +278,7 @@ def main(opts):
         simple_out(i_subkey,timechk)
         return
 
-    loop_cfg(i_subkey,timechk,json.loads(open(opts["cfg"]).read()))
+    loop_cfg(i_subkey,timechk,json.loads(open(opts["cfg"]).read()),testdir,hostname)
 
 
 def parsed_opts():
@@ -275,12 +289,12 @@ def parsed_opts():
     opt.add_option("-P", "--prof", default=False, action="store_true", help="get profile [default: %default]" )
     opt.add_option("-L", "--loglevel", default=15, type="int", help="15:info, 10:debug, 5:trace [default: %default]" )
     opt.add_option("-i", "--interval", default=10, type="int", help="interval to sampling [default: %default]" )
-    opt.add_option("-O", "--output", default=None, help="output to sar binary file[default: %default]" )
+    opt.add_option("-n", "--no_sarbin", default=False, action="store_true", help="output to sar binary file[default: %default]" )
     opt.add_option("-E", "--excludes", default="INTR,MHz", help="[default: %default]" )
     opt.add_option("-s", "--subkeys", default="CPU,DEV,IFACE", help="[default: %default]" )
-    opt.add_option("-f", "--cfg", default=None, help="[default: %default]" )
-    opt.add_option("-d", "--directory", default=/tmp/psar, help="[default: %default]" )
-    opt.add_option("-t", "--testname", default=None, help="[default: %default]" )
+    opt.add_option("-f", "--cfg", default="{0}/psar.json".format(os.path.abspath(os.path.dirname(__file__))), help="[default: %default]" )
+    opt.add_option("-d", "--directory", default=os.getcwd(), help="[default: %default]" )
+    opt.add_option("-t", "--testname", default=datetime.datetime.now().strftime("pac%Y%m%d%H%M%S"), help="[default: %default]" )
     (opts, args)= opt.parse_args()
     return dict(vars(opts).items() + [("args", args)])
 

@@ -1,0 +1,8 @@
+#!/bin/env python
+
+import sys
+if len(sys.argv)!=2:
+    print "Usage: {0} <node_number>".format(sys.argv[0])
+    sys.exit()
+N=int(sys.argv[1])
+print "\n".join( [str(((2**64 / N) * i) - 2**63) for i in range(N)])

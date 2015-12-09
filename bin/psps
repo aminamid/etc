@@ -194,20 +194,36 @@ def outformat(ps,tags,values,hostname):
     for (pk,pv) in ps.items():
         id=" ".join(["{0}".format(pv[x].strip("()") if x=="comm" else pv[x]) for x in tags])
         value=" ".join([f.format(pv[x]) for (x,f) in values])
-        logger.info("{0} {1} {2} {3}".format(pv["time"],hostname,id,value))
+        yield "{0} {1} {2} {3}\n".format(pv["time"],hostname,id,value)
 
 def cmdline_wrapper(cmdline):
     return cmdline
 
 def main(opts):
-    state={"tags":json.loads(opts["tags"]),"values":json.loads(opts["values"]),"hostname":os.uname()[1]}
+    hostname=os.uname()[1]
+    testname = opts["testname"]
+    testdir="{0}/{1}".format(opts["directory"],testname)
+    try:
+        os.makedirs(testdir)
+    except OSError as e:
+        if e.errno == 17: pass
+
+    filename="{0}/{1}.sps".format(testdir,hostname)
+    if os.path.exists(filename):
+         logger.error("{0} is already exists".format(filename))
+         sys.exit(-1)
+
+    f=open("{0}/{1}.sps".format(testdir,hostname),"wba")
+
+    state={"tags":json.loads(opts["tags"]),"values":json.loads(opts["values"]),"hostname":hostname}
     timekeeper=mtimekeeper(interval=opts['interval'], init=time.time(), maxcount=opts['count'])
     psgen=mpsi(MPROC_SPEC['delta_target'])
     logger.debug('opts:{0}'.format(opts))
-    logger.info("time hostname {0} {1}".format(" ".join(state["tags"])," ".join([x[0] for x in state["values"]])))
+    f.write("time hostname {0} {1}\n".format(" ".join(state["tags"])," ".join([x[0] for x in state["values"]])))
+    
 
     for ((c,t), p ) in itertools.izip(timekeeper, psgen):
-        outformat(p,**state)
+        f.writelines(list(outformat(p,**state)))
 
 def parsed_opts():
     import optparse
@@ -220,6 +236,9 @@ def parsed_opts():
     opt.add_option("-i", "--interval", default=1, type="int", help="interval to sampling [default: %default]" )
     opt.add_option("-T", "--tags", default='["Uid","comm","pid"]', help="set column names of tags as json [default: %default]" )
     opt.add_option("-V", "--values", default='[["ppid","{0}"],["cpu","{0:.2f}"],["usr","{0:.2f}"],["sys","{0:.2f}"],["num_threads","{0}"],["VmSize","{0}"],["VmRSS","{0}"],["cmdline","{0}"]]', help="set column names of values as json [default: %default]" )
+    opt.add_option("-d", "--directory", default=os.getcwd(), help="[default: %default]" )
+    opt.add_option("-t", "--testname", default=datetime.datetime.now().strftime("pac%Y%m%d%H%M%S"), help="[default: %default]" )
+
 
 
     (opts, args)= opt.parse_args()

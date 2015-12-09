@@ -1,0 +1,124 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import sys
+import functools
+import pexpect
+import threading
+import multiprocessing
+import Queue
+import time
+import fcntl
+import os
+
+from signal import signal, SIGPIPE, SIG_DFL
+signal(SIGPIPE,SIG_DFL)
+
+fd = sys.stdin.fileno()
+fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+
+from logging import getLogger, basicConfig
+logger = getLogger(__name__)
+logcfg = {
+        #"format": "%(asctime)s.%(msecs).03d %(process)d %(thread)x %(levelname).4s;%(module)s(%(lineno)d/%(funcName)s) %(message)s",
+        #"format": "%(asctime)s.%(msecs).03d %(threadName)s %(levelname).4s;%(module)s(%(lineno)d/%(funcName)s) %(message)s",
+   "format": "%(asctime)s.%(msecs).03d %(threadName)s %(message)s",
+   #"format": "%(message)s",
+   "datefmt": "%Y/%m/%dT%H:%M:%S",
+   "level": 15,
+   "stream": sys.stdout,
+}
+basicConfig(**logcfg)
+
+
+def traclog( f ):
+    @functools.wraps(f)
+    def _f(*args, **kwargs):
+        logger.debug("ENTER:{0} {1}".format( f.__name__, kwargs if kwargs else args))
+        result = f(*args, **kwargs)
+        logger.debug("RETRN:{0} {1}".format( f.__name__, result))
+        return result
+    return _f
+
+@traclog
+def interactloop(label,p,stateg):
+    while not stateg.value:
+        i=p.expect(['(?P<line>[^\r\n]*)[\r\n]*',pexpect.EOF,pexpect.TIMEOUT],timeout=1)
+        if i==0:
+            logger.info("{0}: {1}".format(label,p.match.groupdict()['line']))
+        elif i==1:
+            logger.debug("pexpect.EOF:stateg.value={0}:p.isalive()={1}".format(stateg.value,p.isalive()))
+            if stateg.value or not p.isalive(): break
+            time.sleep(1)
+        elif i==2:
+            logger.debug("pexpect.TIMEOUT:stateg.value={0}:p.isalive()={1}".format(stateg.value,p.isalive()))
+            if stateg.value: break
+    p.close()
+    return dict([(k,v) for (k,v) in p.__dict__.items() if k in ["exitstatus","signalstatus","status"]]) 
+
+@traclog
+def worker(q_task,stateg):
+    state={"shell": os.environ['SHELL']}
+    while True:
+        try:
+            logger.debug("getting que")
+            (state['id'],state['cmd'],state['outputfile'])=q_task.get(timeout=1)
+            q_task.task_done()
+        except Queue.Empty as e:
+            break
+        if state['outputfile']:
+            state["logfile"]=open("{id}.log".format(**state),"ab")
+            state["logfile"].write("## START {0}\n{1}\n".format(time.strftime("%Y%m%d %H%M%S"),state['cmd']))
+        else:
+            state["logfile"]=None
+        logger.info("{id}:START cmd=[{shell} -c '{cmd}']".format(**state))
+        state.update(interactloop(state['id'],pexpect.spawn("{shell} -c '{cmd}'".format(**state),logfile=state['logfile']),stateg))
+        logger.info("{id}:END   cmd=[{shell} -c '{cmd}']:exitstatus={exitstatus}:signalstatus={signalstatus}:status={status}".format(**state))
+
+@traclog
+def main(opts):
+    q_task=multiprocessing.JoinableQueue()
+    state_global = multiprocessing.Value('b', False)
+    threads={}
+    for i in range(opts["numpool"]):
+        threads[i]=threading.Thread(target=worker, name="thread{0:_>4}".format(i), args=(q_task,state_global))
+        threads[i].start()
+    for i,cmd in enumerate(opts["args"] + ([l.strip() for l in sys.stdin.readlines()] if opts['stdin'] else [])):
+        logger.debug("task_{0}:PUT cmd={1}".format(i,cmd))
+        q_task.put(("task_{0}".format(i),cmd,opts['outputfile']))
+
+    while True:
+        try:
+            time.sleep(1)
+            for k,v in threads.items():
+                if v.is_alive(): continue
+                v.join()
+                del(threads[k])
+            if not threads: break
+            time.sleep(1)
+        except KeyboardInterrupt as e:
+            logger.debug("Cought keyboard interrupt by main")
+            state_global.value=True
+
+
+@traclog
+def parsed_opts():
+    import optparse
+    import os
+
+    opt = optparse.OptionParser()
+    opt.add_option("-L", "--loglevel", default=15, type="int", help="15:info, 10:debug, 5:trace [default: %default]" )
+    opt.add_option("-l", "--logfile", default=False, action="store_true", help="store logfile [default: %default]" )
+    opt.add_option("-n", "--numpool", default=10, type="int", help="[default: %default]" )
+    opt.add_option("-o", "--outputfile", default=False, action="store_true", help="store each procs [default: %default]" )
+    opt.add_option("-s", "--stdin", default=False, action="store_true", help="[default: %default]" )
+    (opts, args)= opt.parse_args()
+    return dict(vars(opts).items() + [("args", args)])
+
+if __name__ == '__main__':
+    opts = parsed_opts()
+    logger.setLevel(opts['loglevel'])
+
+    logger.debug("sys.stdout.encoding={0}".format(sys.stdout.encoding))
+    main(opts)
