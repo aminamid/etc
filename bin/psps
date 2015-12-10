@@ -236,7 +236,7 @@ def parsed_opts():
     opt.add_option("-i", "--interval", default=1, type="int", help="interval to sampling [default: %default]" )
     opt.add_option("-T", "--tags", default='["Uid","comm","pid"]', help="set column names of tags as json [default: %default]" )
     opt.add_option("-V", "--values", default='[["ppid","{0}"],["cpu","{0:.2f}"],["usr","{0:.2f}"],["sys","{0:.2f}"],["num_threads","{0}"],["VmSize","{0}"],["VmRSS","{0}"],["cmdline","{0}"]]', help="set column names of values as json [default: %default]" )
-    opt.add_option("-d", "--directory", default=os.getcwd(), help="[default: %default]" )
+    opt.add_option("-d", "--directory", default=os.getcwd() if not "TOOL_ROOT" in os.environ else "{0}/pacdat".format(os.path.dirname(os.environ["TOOL_ROOT"])), help="[default: %default]" )
     opt.add_option("-t", "--testname", default=datetime.datetime.now().strftime("pac%Y%m%d%H%M%S"), help="[default: %default]" )
 
 

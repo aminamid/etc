@@ -293,7 +293,8 @@ def parsed_opts():
     opt.add_option("-E", "--excludes", default="INTR,MHz", help="[default: %default]" )
     opt.add_option("-s", "--subkeys", default="CPU,DEV,IFACE", help="[default: %default]" )
     opt.add_option("-f", "--cfg", default="{0}/psar.json".format(os.path.abspath(os.path.dirname(__file__))), help="[default: %default]" )
-    opt.add_option("-d", "--directory", default=os.getcwd(), help="[default: %default]" )
+    opt.add_option("-d", "--directory", default=os.getcwd() if not "TOOL_ROOT" in os.environ else "{0}/pacdat".format(os.path.dirname(os.environ["TOOL_ROOT"])), help="[default: %default]" )
+
     opt.add_option("-t", "--testname", default=datetime.datetime.now().strftime("pac%Y%m%d%H%M%S"), help="[default: %default]" )
     (opts, args)= opt.parse_args()
     return dict(vars(opts).items() + [("args", args)])
