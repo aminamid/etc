@@ -220,10 +220,12 @@ def main(opts):
     psgen=mpsi(MPROC_SPEC['delta_target'])
     logger.debug('opts:{0}'.format(opts))
     f.write("time hostname {0} {1}\n".format(" ".join(state["tags"])," ".join([x[0] for x in state["values"]])))
+    f.flush()
     
 
     for ((c,t), p ) in itertools.izip(timekeeper, psgen):
         f.writelines(list(outformat(p,**state)))
+        f.flush()
 
 def parsed_opts():
     import optparse

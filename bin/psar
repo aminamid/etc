@@ -224,14 +224,17 @@ def loop_cfg(i_d,i_t,cfg,testdir,hostname):
                 output_groups[k]=[l for l in labels if l in v]
                 output_files[k].write(" ".join(["time"]+output_groups[k]))
                 output_files[k].write("\n")
+                output_files[k].flush()
             for (k,v) in cfg[1].items():
                 output_groups[k]=[l for l in labels if l.split(".")[0] in v]
                 output_files[k].write(" ".join(["time"]+output_groups[k]))
                 output_files[k].write("\n")
+                output_files[k].flush()
         logger.info(" ".join([otime] + [dat[otime][k] for k in labels]))
         for (k,v) in output_groups.items():
             output_files[k].write(" ".join([otime]+[dat[otime][dk] for dk in v]))
             output_files[k].write("\n")
+            output_files[k].flush()
         del(dat[otime])
     return
 
