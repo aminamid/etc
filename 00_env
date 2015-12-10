@@ -2,12 +2,12 @@ export TOOL_ROOT=$(cd $(dirname ${BASH_SOURCE:-$0}); pwd)
 
 . ${TOOL_ROOT}/etc/bashrc
 
-export PATH=$(uniqjoin : "${PATH}" ${TOOL_ROOT}/bin)${PATH}
-export LD_LIBRARY_PATH=$(uniqjoin : "${LD_LIBRARY_PATH}" ${TOOL_ROOT}/lib)${LD_LIBRARY_PATH}
+export PATH=$(ifuniq : "${PATH}" ${TOOL_ROOT}/bin)${PATH}
+export LD_LIBRARY_PATH=$(ifuniq : "${LD_LIBRARY_PATH}" ${TOOL_ROOT}/lib)${LD_LIBRARY_PATH}
 
 export OPWVPAC=${TOOL_ROOT}/opwv_pac
-export PATH=$(uniqjoin : "${PATH}" ${OPWVPAC}/tools/bin)${PATH}
-export LD_LIBRARY_PATH=$(uniqjoin : "${LD_LIBRARY_PATH}" ${OPWVPAC}/tools/lib)${LD_LIBRARY_PATH}
+export PATH=$(ifuniq : "${PATH}" ${OPWVPAC}/tools/bin)${PATH}
+export LD_LIBRARY_PATH=$(ifuniq : "${LD_LIBRARY_PATH}" ${OPWVPAC}/tools/lib)${LD_LIBRARY_PATH}
 
 export VIRTUALENV_DIR="${TOOL_ROOT}/_pythonenv"
 if ! [ -d ${VIRTUALENV_DIR} ]; then
