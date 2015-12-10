@@ -1,0 +1,12 @@
+#!/bin/bash
+
+testname=${1:-$(date +test%Y%m%d%H%M%S)}
+interval=${2:-60}
+
+echo "testname:" ${testname}
+echo "interval:" ${interval}
+
+paracmd -n 2 -d pacmon -l \
+"psar -i ${interval} -t ${testname}" \
+"psps -i ${interval} -t ${testname}" \
+""

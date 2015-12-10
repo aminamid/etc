@@ -2,7 +2,6 @@
 
 export HISTCONTROL=ignoredups
 
-echo "TOOL_ROOT=${TOOL_ROOT}"
 # TERM may screen-256color-bce
 alias tmux="TERM=screen-256color-bce ${TOOL_ROOT}/bin/tmux -f ${TOOL_ROOT}/etc/tmux.conf -L opwvpac_tmux"
 alias tmn='tmux new -s '
@@ -99,6 +98,12 @@ sol_light()
     echo -ne '\eP\e]4;15;#FDF6E3\a'  # bold white   -> Base3
 }
 
+# $ jo , "1 2 3"
+# 1,2,3
+#
+# $ jo , "$(echo {1..5})"
+# 1,2,3,4,5
+
 jo()
 {
    arr=($2)
@@ -106,13 +111,29 @@ jo()
    echo ${str}
 }
 
+# $ sp , "a,b,c"
+# a
+# b
+# c
+#
+# $ jo '-' "$(sp , "a,b,c")"
+# a-b-c
+#
+# $ echo  "$(sp , "a,b,c")"
+# a
+# b
+# c
+
 sp()
 {
     IFS=$1 eval 'arr=($2)'
     for v in "${arr[@]}"; do  echo "$v"; done
 }
 
-uniqjoin()
+# $ x=a-b-c ; echo $(uniqjoin - ${x} A)${x}
+# A-a-b-c
+
+ifuniq()
 {
     grep -qe "^"${3}"$" <(sp ${1} ${2})
     if [ 0 -ne $? ]
@@ -121,4 +142,10 @@ uniqjoin()
     else
         echo 
     fi
+}
+
+
+uniqjoin()
+{
+    jo $1 "$(sp $1 $(jo $1 "$(echo "${@:2}")") | sort | uniq)" 
 }

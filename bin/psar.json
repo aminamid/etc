@@ -1,0 +1,16 @@
+[
+{
+  "CPU":["%usr.all","%sys.all","%iowait.all","%idle.all"],
+  "Mem":["kbmemused","kbbuffers","kbcached","kbmemfree"],
+  "TCP":["atmptf/s","estres/s","retrans/s","isegerr/s","orsts/s"],
+  "SCK":["totsck","tcpsck","tcp-tw"]
+},
+{
+  "dutil":["%util"],
+  "dtime":["svctm","await"],
+  "dtruf":["rd_sec/s","wr_sec/s"],
+  "dque": ["avgrq-sz","avgqu-sz"],
+  "nerr": ["coll/s","rxdrop/s","txdrop/s","rxerr/s","txerr/s"],
+  "ntruf":["rxkB/s","txkB/s","rxpck/s","txpck/s"]
+}
+]
