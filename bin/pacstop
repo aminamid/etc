@@ -1,0 +1,6 @@
+#!/bin/bash
+
+pactmp=$(dirname ${TOOL_ROOT})
+rm ${pactmp}/pacmon.working
+
+ps -ef  | grep paracmd

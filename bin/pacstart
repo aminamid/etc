@@ -3,10 +3,12 @@
 testname=${1:-$(date +test%Y%m%d%H%M%S)}
 interval=${2:-60}
 
+pactmp=$(dirname ${TOOL_ROOT})
+
 echo "testname:" ${testname}
 echo "interval:" ${interval}
 
-nohup paracmd -n 2 -d pacmon -l \
+nohup paracmd -t ${pactmp} -n 2 -d pacmon -l \
 "psar -i ${interval} -t ${testname}" \
 "psps -i ${interval} -t ${testname}" \
 "" &
