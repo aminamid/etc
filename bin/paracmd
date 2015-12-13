@@ -76,21 +76,42 @@ def worker(q_task,stateg,prefix):
         logger.info("{id}:END   cmd=[{shell} -c '{cmd}']:exitstatus={exitstatus}:signalstatus={signalstatus}:status={status}".format(**state))
 
 def daemon(nochdir, noclose):
+    fname="/tmp/paraxxx"
+    print fname
+    f = open(fname, "wa")
+    f.write( "1pid{0}\n".format(os.getpid()))
+    f.flush()
     if os.fork() != 0:
         sys.exit(0)
+    f.write( "2pid{0}\n".format(os.getpid()))
+    f.flush()
     if os.setsid() < 0:
         return -1
+    f.write( "3pid{0}\n".format(os.getpid()))
+    f.flush()
     if os.fork() != 0:
         sys.exit(0)
+    f.write( "4pid{0}\n".format(os.getpid()))
+    f.flush()
     if os.umask(0) < 0:
         return -1
+    f.write( "5pid{0}\n".format(os.getpid()))
+    f.flush()
     if not nochdir:
         os.chdir("/")
+    f.write( "6pid{0}\n".format(os.getpid()))
+    f.flush()
     if not noclose:
-        fd = os.open("/dev/null", "rw+")
-        os.dup2(sys.stdin, fd)
-        os.dup2(sys.stdout, fd)
-        os.dup2(sys.stderr, fd)
+        logger.error("noclose")
+        fdi = os.open("/dev/null", "rb+")
+        fdo = os.open("/tmp/paracmd.{0}.stdout".format(os.getpid()), "wb+")
+        fde = os.open("/tmp/paracmd.{0}.stderr".format(os.getpid()), "wb+")
+        os.dup2(sys.stdin, fdi)
+        os.dup2(sys.stdout, fdo)
+        os.dup2(sys.stderr, fde)
+    f.write( "7pid{0}\n".format(os.getpid()))
+    f.flush()
+    f.close()
     return 0
 
 
@@ -101,7 +122,7 @@ def main(opts):
             logger.error("{0} is exists".format(lockfile)) 
             sys.exit(-2)
         open(lockfile,"w").write(str(os.getpid()))
-        daemon(False, False)
+        #daemon(True, False)
 
     q_task=multiprocessing.JoinableQueue()
     state_global = multiprocessing.Value('b', False)

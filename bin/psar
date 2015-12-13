@@ -20,7 +20,7 @@ logcfg = {
    #"format": "%(asctime)s.%(msecs).03d %(process)d %(thread)x %(levelname).4s;%(module)s(%(lineno)d/%(funcName)s) %(message)s",
    "format": "%(message)s",
    "datefmt": "%Y/%m/%dT%H:%M:%S",
-   "level": 10,
+   "level": 20,
    "stream": sys.stderr,
 }
 basicConfig(**logcfg)
@@ -290,7 +290,7 @@ def parsed_opts():
 
     opt = optparse.OptionParser()
     opt.add_option("-P", "--prof", default=False, action="store_true", help="get profile [default: %default]" )
-    opt.add_option("-L", "--loglevel", default=15, type="int", help="15:info, 10:debug, 5:trace [default: %default]" )
+    opt.add_option("-L", "--loglevel", default=25, type="int", help="15:info, 10:debug, 5:trace [default: %default]" )
     opt.add_option("-i", "--interval", default=10, type="int", help="interval to sampling [default: %default]" )
     opt.add_option("-n", "--no_sarbin", default=False, action="store_true", help="output to sar binary file[default: %default]" )
     opt.add_option("-E", "--excludes", default="INTR,MHz", help="[default: %default]" )

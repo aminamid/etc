@@ -6,7 +6,7 @@ interval=${2:-60}
 echo "testname:" ${testname}
 echo "interval:" ${interval}
 
-paracmd -n 2 -d pacmon -l \
+nohup paracmd -n 2 -d pacmon -l \
 "psar -i ${interval} -t ${testname}" \
 "psps -i ${interval} -t ${testname}" \
-""
+"" &
