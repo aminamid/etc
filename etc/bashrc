@@ -11,9 +11,11 @@ alias tma='tmux a -t '
 
 alias gotty="${TOOL_ROOT}/bin/gotty --config ${TOOL_ROOT}/etc/gotty.conf -w tmux"
 
-tmm()
+mm()
 {
-    eval mssh $1@$(cat $2)
+    l="$(cat ${@:2})"
+    args="$(for h in ${l}; do echo $1@${h}; done)"
+    eval mssh ${args}
 }
 
 mssh()
