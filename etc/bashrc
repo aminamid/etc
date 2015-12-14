@@ -11,11 +11,29 @@ alias tma='tmux a -t '
 
 alias gotty="${TOOL_ROOT}/bin/gotty --config ${TOOL_ROOT}/etc/gotty.conf -w tmux"
 
-mm()
+mh()
 {
+    if [ $# -le 1 ]; then echo "mh <user> <file> [file ...]" ; return;  fi
     l="$(cat ${@:2})"
     args="$(for h in ${l}; do echo $1@${h}; done)"
-    eval mssh ${args}
+    cmd="mssh ${args}"
+    eval ${cmd}
+}
+
+mc()
+{
+    l="$(cat ${@:3})"
+    args="$(for h in ${l}; do echo $1@${h}; done)"
+    froms=$(eval echo ${args})
+    for from in ${args}; do cmd="rsync -av ${from}:${2}/ ${2}/"; echo ${cmd}; ${cmd}; done
+}
+
+md()
+{
+    l="$(cat ${@:3})"
+    args="$(for h in ${l}; do echo $1@${h}; done)"
+    tos=$(eval echo ${args})
+    for to in ${tos}; do cmd="rsync -av ${2}/ ${to}:${2}/"; echo ${cmd}; ${cmd}; done
 }
 
 mssh()
