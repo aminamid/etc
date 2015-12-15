@@ -25,7 +25,15 @@ mc()
     l="$(cat ${@:3})"
     args="$(for h in ${l}; do echo $1@${h}; done)"
     froms=$(eval echo ${args})
-    for from in ${args}; do cmd="rsync -av ${from}:${2}/ ${2}/"; echo ${cmd}; ${cmd}; done
+    for from in ${args}; do cmd="rsync -a ${from}:${2}/ ${2}/"; echo ${cmd}; ${cmd}; done
+}
+
+mdtool()
+{
+    l="$(cat ${@:2})"
+    args="$(for h in ${l}; do echo $1@${h}; done)"
+    tos=$(eval echo ${args})
+    for to in ${tos}; do cmd="rsync -a --exclude=*.pyc ${TOOL_ROOT}/ ${to}:${TOOL_ROOT}/"; echo ${cmd}; ${cmd}; done
 }
 
 md()
@@ -33,7 +41,7 @@ md()
     l="$(cat ${@:3})"
     args="$(for h in ${l}; do echo $1@${h}; done)"
     tos=$(eval echo ${args})
-    for to in ${tos}; do cmd="rsync -av ${2}/ ${to}:${2}/"; echo ${cmd}; ${cmd}; done
+    for to in ${tos}; do cmd="rsync -a --exclude=*.pyc ${2}/ ${to}:${2}/"; echo ${cmd}; ${cmd}; done
 }
 
 mssh()
