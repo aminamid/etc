@@ -41,16 +41,23 @@ def traclog( f ):
     return _f
 
 @traclog
-def interactloop(label,p,stateg):
+def interactloop(label,p,stateg,password):
     while not stateg.value:
-        i=p.expect(['(?P<line>[^\r\n]*)[\r\n]*',pexpect.EOF,pexpect.TIMEOUT],timeout=1)
+        i=p.expect(['(?P<line>[^@\s]+@[^@\s]+s password: |\[sudo\] password for [^\s]+: )','(?P<line>[^\r\n]*)[\r\n]*',pexpect.EOF,pexpect.TIMEOUT],timeout=1)
         if i==0:
+            if not password==None:
+                logger.info("{0}: password required: {1}".format(label,p.match.groupdict()['line']))
+                p.send("{0}\n".format(password))
+                logger.info("{0}: sent {1}".format(label,password))
+                continue
             logger.info("{0}: {1}".format(label,p.match.groupdict()['line']))
         elif i==1:
+            logger.info("{0}: {1}".format(label,p.match.groupdict()['line']))
+        elif i==2:
             logger.debug("pexpect.EOF:stateg.value={0}:p.isalive()={1}".format(stateg.value,p.isalive()))
             if stateg.value or not p.isalive(): break
             time.sleep(1)
-        elif i==2:
+        elif i==3:
             logger.debug("pexpect.TIMEOUT:stateg.value={0}:p.isalive()={1}".format(stateg.value,p.isalive()))
             if stateg.value: break
     p.close()
@@ -62,7 +69,7 @@ def worker(q_task,stateg,prefix):
     while True:
         try:
             logger.debug("getting que")
-            (state['id'],state['cmd'],state['outputfile'])=q_task.get(timeout=1)
+            (state['id'],state['cmd'],state['outputfile'],state['password'])=q_task.get(timeout=1)
             q_task.task_done()
         except Queue.Empty as e:
             break
@@ -72,7 +79,7 @@ def worker(q_task,stateg,prefix):
         else:
             state["outfile"]=None
         logger.info("{id}:START cmd=[{shell} -c '{cmd}']".format(**state))
-        state.update(interactloop(state['id'],pexpect.spawn("{shell} -c '{cmd}'".format(**state),logfile=state["outfile"]),stateg))
+        state.update(interactloop(state['id'],pexpect.spawn("{shell} -c '{cmd}'".format(**state),logfile=state["outfile"]),stateg,state['password']))
         logger.info("{id}:END   cmd=[{shell} -c '{cmd}']:exitstatus={exitstatus}:signalstatus={signalstatus}:status={status}".format(**state))
 
 def daemon(nochdir, noclose):
@@ -132,7 +139,7 @@ def main(opts):
         threads[i].start()
     for i,cmd in enumerate(opts["args"] + ([l.strip() for l in sys.stdin.readlines()] if opts['stdin'] else [])):
         logger.debug("task_{0}:PUT cmd={1}".format(i,cmd))
-        q_task.put(("task_{0}".format(i),cmd,opts['outputfile']))
+        q_task.put(("task_{0}".format(i),cmd,opts['outputfile'],opts['password']))
 
     while True:
         try:
@@ -168,6 +175,7 @@ def parsed_opts():
     opt.add_option("-s", "--stdin", default=False, action="store_true", help="[default: %default]" )
     opt.add_option("-d", "--daemon_name", default=None, help="[default: %default]" )
     opt.add_option("-t", "--tmpdir", default="{0}".format(os.path.dirname(os.environ["TOOL_ROOT"]) if "TOOL_ROOT" in os.environ else os.getcwd()), help="[default: %default]" )
+    opt.add_option("-w", "--password", default=None, help="[default: %default]" )
     (opts, args)= opt.parse_args()
     return dict(vars(opts).items() + [("args", args)])
 

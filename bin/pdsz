@@ -1,0 +1,29 @@
+#!/bin/bash
+rootdir=${1:-/imail}
+testname=${2:-$(date +test%Y%m%d%H%M%S)}
+interval=${3:-60}
+
+pacdir="$(dirname ${TOOL_ROOT})/pacdat"
+
+if [ ! -d "${pacdir}/${testname}" ]
+then
+    mkdir -p ${pacdir}/${testname}
+fi
+
+outputfile=${pacdir}/${testname}/$(hostname).files
+
+echo "testname:" ${testname}
+echo "interval:" ${interval}
+
+while true; do
+  ct=$(date +%Y-%m-%dT%H:%M:%S)
+  sudo find ${rootdir} \( -name lib -o -name conf -o -name bin -o -name man -o -name javadoc -o -name pylib -o -name tools -o -name snmp -o -name config -o -name upgrade -o -name doc -o -name patch -o -name python -o -name java \) -prune -o -type f -printf "%h %f %s\n" | sed -e 's/^/'${ct}' /' | awk '{print $1,$2,$4; fflush()}' | awk 't!=$1{t=$1; for(k in l) print k,l[k]; fflush(); delete l} {l[$1" "$2]+=$3} END {for(k in l) print k,l[k]; fflush()}' >> ${outputfile}
+  sleep ${interval}
+done
+
+#while true; do
+#  ct=$(date +%Y-%m-%dT%H:%M:%S)
+#  sudo find ${rootdir} \( -name lib -o -name conf -o -name bin -o -name man -o -name javadoc -o -name pylib -o -name tools -o -name snmp -o -name config -o -name upgrade -o -name doc -o -name patch -o -name python -o -name java \) -prune -o -type f -printf "%h %f %s\n" | sed -e 's/^/'${ct}' /' >> ${outputfile}
+#  sleep ${interval}
+#done
+
