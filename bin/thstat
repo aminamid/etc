@@ -1,0 +1,4 @@
+#!/bin/bash
+pid=$1
+pstack ${pid} | sed -e ":a;N;s/\n\([^T].*\) .* in \(.*\)/ \2/;t a;P;D" | sed "s/Thread .* (Thread .* (LWP \(.*\))): \(.*\)/\1 \2/; s/ from [^ ]*\($\| \)/ /g; s/@@GLIBC[^ ]*//g; s/ ()\($\| \)/--/g; s/([^)]*)/()/g; s/ \[[^]]\+\]/\[\]/g; s/<[^<>]*>/{}/g; s/<[^<>]*>/{}/g; s/<[^<>]*>/{}/g;s/<[^<>]*>/{}/g;s/{}/<>/g; s/ /-/2g " | sort -nk1
+while true ; do echo "time $(date +%H:%M:%S)"; cat /proc/${pid}/task/*/stat; sleep 2; done | awk '{if ($1=="time") {times=$2; printf ("\n%s ",times)} else {if ($1 in etime) printf("%d:[%s] ",$1,$14+$15-etime[$1]); etime[$1]=$14+$15}}'
