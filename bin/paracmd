@@ -43,7 +43,7 @@ def traclog( f ):
 @traclog
 def interactloop(label,p,stateg,password):
     while not stateg.value:
-        i=p.expect(['(?P<line>[^@\s]+@[^@\s]+s password: |\[sudo\] password for [^\s]+: )','(?P<line>[^\r\n]*)[\r\n]*',pexpect.EOF,pexpect.TIMEOUT],timeout=1)
+        i=p.expect(['(?P<line>[^@\s]+@[^@\s]+\'s password: |\[sudo\] password for [^\s]+: )','(?P<line>[^\r\n]*)[\r\n]*',pexpect.EOF,pexpect.TIMEOUT],timeout=1)
         if i==0:
             if not password==None:
                 logger.info("{0}: password required: {1}".format(label,p.match.groupdict()['line']))
@@ -82,46 +82,6 @@ def worker(q_task,stateg,prefix):
         state.update(interactloop(state['id'],pexpect.spawn("{shell} -c '{cmd}'".format(**state),logfile=state["outfile"]),stateg,state['password']))
         logger.info("{id}:END   cmd=[{shell} -c '{cmd}']:exitstatus={exitstatus}:signalstatus={signalstatus}:status={status}".format(**state))
 
-def daemon(nochdir, noclose):
-    fname="/tmp/paraxxx"
-    print fname
-    f = open(fname, "wa")
-    f.write( "1pid{0}\n".format(os.getpid()))
-    f.flush()
-    if os.fork() != 0:
-        sys.exit(0)
-    f.write( "2pid{0}\n".format(os.getpid()))
-    f.flush()
-    if os.setsid() < 0:
-        return -1
-    f.write( "3pid{0}\n".format(os.getpid()))
-    f.flush()
-    if os.fork() != 0:
-        sys.exit(0)
-    f.write( "4pid{0}\n".format(os.getpid()))
-    f.flush()
-    if os.umask(0) < 0:
-        return -1
-    f.write( "5pid{0}\n".format(os.getpid()))
-    f.flush()
-    if not nochdir:
-        os.chdir("/")
-    f.write( "6pid{0}\n".format(os.getpid()))
-    f.flush()
-    if not noclose:
-        logger.error("noclose")
-        fdi = os.open("/dev/null", "rb+")
-        fdo = os.open("/tmp/paracmd.{0}.stdout".format(os.getpid()), "wb+")
-        fde = os.open("/tmp/paracmd.{0}.stderr".format(os.getpid()), "wb+")
-        os.dup2(sys.stdin, fdi)
-        os.dup2(sys.stdout, fdo)
-        os.dup2(sys.stderr, fde)
-    f.write( "7pid{0}\n".format(os.getpid()))
-    f.flush()
-    f.close()
-    return 0
-
-
 def main(opts):
     if opts["daemon_name"]:
         lockfile="{tmpdir}/{daemon_name}.working".format(**opts)
@@ -129,7 +89,6 @@ def main(opts):
             logger.error("{0} is exists".format(lockfile)) 
             sys.exit(-2)
         open(lockfile,"w").write(str(os.getpid()))
-        #daemon(True, False)
 
     q_task=multiprocessing.JoinableQueue()
     state_global = multiprocessing.Value('b', False)
@@ -139,7 +98,7 @@ def main(opts):
         threads[i].start()
     for i,cmd in enumerate(opts["args"] + ([l.strip() for l in sys.stdin.readlines()] if opts['stdin'] else [])):
         logger.debug("task_{0}:PUT cmd={1}".format(i,cmd))
-        q_task.put(("task_{0}".format(i),cmd,opts['outputfile'],opts['password']))
+        q_task.put(("task_{0}".format(i),cmd,opts['output_opelog'],opts['password']))
 
     while True:
         try:
@@ -168,27 +127,29 @@ def parsed_opts():
     opt = optparse.OptionParser()
     opt.add_option("-L", "--loglevel", default=15, type="int", help="15:info, 10:debug, 5:trace [default: %default]" )
     opt.add_option("-D", "--logdir", default="{0}/log".format(os.path.dirname(os.environ["TOOL_ROOT"]) if "TOOL_ROOT" in os.environ else os.getcwd()), help="store logfile [default: %default]" )
-    opt.add_option("-l", "--logfile", default=False, action="store_true", help="store logfile [default: %default]" )
+    opt.add_option("-t", "--tmpdir", default="{0}".format(os.path.dirname(os.environ["TOOL_ROOT"]) if "TOOL_ROOT" in os.environ else os.getcwd()), help="[default: %default]" )
+    opt.add_option("-l", "--log_to_file", default=False, action="store_true", help="store log to file [default: %default]" )
     opt.add_option("-p", "--prefix", default=[os.path.splitext(os.path.basename(__file__))[0],time.strftime("%Y%m%d%H%M%S")], help="prefix for logfile [default: %default]" )
     opt.add_option("-n", "--numpool", default=10, type="int", help="[default: %default]" )
-    opt.add_option("-o", "--outputfile", default=False, action="store_true", help="store each procs [default: %default]" )
+    opt.add_option("-o", "--output_opelog", default=False, action="store_true", help="store each procs [default: %default]" )
     opt.add_option("-s", "--stdin", default=False, action="store_true", help="[default: %default]" )
     opt.add_option("-d", "--daemon_name", default=None, help="[default: %default]" )
-    opt.add_option("-t", "--tmpdir", default="{0}".format(os.path.dirname(os.environ["TOOL_ROOT"]) if "TOOL_ROOT" in os.environ else os.getcwd()), help="[default: %default]" )
     opt.add_option("-w", "--password", default=None, help="[default: %default]" )
+    opt.add_option("-f", "--format", default="%(asctime)s.%(msecs).03d %(threadName)s %(message)s", help="[default: %default]" )
     (opts, args)= opt.parse_args()
     return dict(vars(opts).items() + [("args", args)])
 
 if __name__ == '__main__':
     opts = parsed_opts()
-    if opts["logfile"] or opts["outputfile"]:
+    if opts["log_to_file"] or opts["output_opelog"]:
         if not os.path.exists(opts["logdir"]):
             os.makedirs(opts["logdir"])
         if not os.path.isdir(opts["logdir"]):
             logger.error("{0} is not directory")
             sys.exit(-2)
-    if opts["logfile"]:
+    if opts["log_to_file"]:
         logcfg["filename"]="{0}/{1}.{2}".format(opts["logdir"], opts["prefix"][0], opts["prefix"][1])
+    logcfg["format"]=opts["format"]     
     basicConfig(**logcfg)
     logger.setLevel(opts['loglevel'])
     logger.debug("sys.stdout.encoding={0}".format(sys.stdout.encoding))

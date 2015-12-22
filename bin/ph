@@ -1,0 +1,275 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import sys
+from logging import getLogger, basicConfig
+
+logger = getLogger(__name__)
+logcfg = {
+  #"format": "%(asctime)s.%(msecs).03d %(process)d %(thread)x %(levelname).4s;%(module)s(%(lineno)d/%(funcName)s) %(message)s",
+  "format": "%(message)s",
+  "datefmt": "%Y/%m/%dT%H:%M:%S",
+  "level": 15,
+  "stream": sys.stdout,
+}
+basicConfig(**logcfg)
+
+import os
+import time
+import re
+import multiprocessing
+import Queue
+import functools
+import pexpect
+
+os.environ["TERM"] = "dumb"
+
+class KnownSshKey(Exception):
+    def __init__(self, key):
+        self._key = key
+    def __str__ (self):
+        return ("{0}: please confirm ~/.ssh/known_hosts".format(self._key))
+
+# su/ssh/telnet <user>[:pass][@host]
+MHURL=r"^((?P<tag>[^=]+)=){0,1}((?P<protocol>[^:]+)://){0,1}(?P<user>[^/:@]+){1}(:(?P<password>[^:@]+)){0,1}(@(?P<host>[^@:]+)(:(?P<port>[^:]+)){0,1}){0,1}$"
+
+CMD_TMPLS={
+        "ssh": ["{protocol} -p {port} {user}@{host}", { "port": 22 }],
+        "telnet": ["{protocol} {host} {port}", { "port": 23 }],
+        "su": ["{protocol} - {user}", {}],
+        }
+PROMPTS="([#$%] )\Z"
+SNDRECVS={
+        "ssh": [
+            ["assword: ", lambda conn, parm: conn.sendline("{password}".format(**parm))],
+            ["\(yes/no\)\?", lambda conn, parm: conn.sendline("yes")],
+            [r"@@@@@@@@", lambda conn, parm: (_ for _ in ()).throw(KnownSshKey(parm))],
+            [PROMPTS, lambda conn, parm: conn ],
+        ],
+        "su": [
+            ["assword: ", lambda conn, parm: conn.sendline("{password}".format(**parm))],
+            [PROMPTS, lambda conn, parm: conn ],
+        ],
+        }
+
+def traclog( f ):
+    @functools.wraps(f)
+    def _f(*args, **kwargs):
+        logger.debug("ENTER:{0} {1}".format( f.__name__, kwargs if kwargs else args))
+        result = f(*args, **kwargs)
+        logger.debug("RETRN:{0} {1}".format( f.__name__, result))
+        return result
+    return _f
+
+def fsts(ls):
+    return [l[0] for l in ls]
+
+def snds(ls):
+    return [l[1] for l in ls]
+
+def imupdate(default, value):
+    return dict([(k,v) if v or not default.get(k) else (k, default[k]) for (k,v) in value.items()])
+
+@traclog
+def cmd(template, parm):
+    return template[0].format(**imupdate(default=template[1], value=parm)) 
+
+def auth(conn, parm, procedure):
+    while True:
+        try:
+            i = conn.expect( fsts(procedure), timeout=1 )
+            rslt = snds(procedure)[i](conn,parm)
+            if rslt == conn:
+                return rslt
+        except pexpect.TIMEOUT as e:
+            continue
+
+def recursive_auth(conn, parms, procedures):
+    while True:
+        if len(parms)<1: return conn
+        try:
+            conn.sendline(cmd(CMD_TMPLS[parms[0]["protocol"]], parms[0])) 
+            rslt = auth(conn, parms[0], procedures[parms[0]["protocol"]])
+            return recursive_auth(rslt, parms[1:], procedures)
+        except pexpect.TIMEOUT as e:
+            continue
+
+def makeconn(parm):
+    return pexpect.spawn(cmd(CMD_TMPLS[parm["protocol"]], parm))
+
+
+def exexpect(tag, conn, que, expection):
+    i=-1
+    while i != 0:
+        logger.debug("{0}: <exexpectloop>".format(tag))
+        try:
+            l=que.get(timeout=0)
+            que.task_done()
+            logger.debug("{0}: {1}".format(tag,l.strip()))
+            if l=="c\n":
+                conn.sendcontrol('c')
+            else:
+                conn.send(l)
+        except Queue.Empty as e:
+            pass
+        i = conn.expect([expection, r"[\r\n]+", r"\Z", pexpect.TIMEOUT],timeout=1)
+        logger.debug("{0}: i=<{1}>".format(tag,i))
+        if i == 0:
+            return conn.match.group(1)
+        if i == 1:
+            logger.info("{0}: {1}".format(tag,conn.before))
+        elif i == 2:
+            logger.info("{0}: {1} --continue".format(tag,conn.before))
+        elif i == 3:
+            continue
+        elif i == 4:
+            return None
+
+@traclog
+def workerloop(que,done,parms):
+    tag = parms[0]["tag"] if parms[0].get("tag") else "{0}@{1}".format(parms[0].get("user"),parms[0]["host"])
+    conn = auth(makeconn(parms[0]), parms[0], SNDRECVS[parms[0]["protocol"]])
+    conn = recursive_auth(conn, parms[1:], SNDRECVS)
+    logger.info("{0}: {1}".format(tag,conn.match.group(1)))
+    while True:
+        logger.debug("{0}: <workerloop>".format(tag))
+        try:
+            l=que.get(timeout=1)
+            que.task_done()
+            logger.debug("{0}: {1}".format(tag,l))
+            conn.send(l)
+            logger.info("{0}: {1}".format(tag,exexpect(tag,conn,que,PROMPTS)))
+        except Queue.Empty as e:
+            logger.debug("{0}: <Queue.Empty>".format(tag))
+            if done.value:
+                break
+        except pexpect.EOF as eof:
+            logger.info("{0}: {1}".format(tag,"EOF"))
+            break
+        except KeyboardInterrupt as e:
+            logger.error("{0}: KeyboardInterrupt".format(tag))
+            conn.sendcontrol('c')
+            conn.send("exit")
+            conn.close()
+            break
+        except Exception as e:
+            logger.error("{0}: Not defined exception !!! {1}".format(tag,e))
+            conn.sendcontrol('c')
+            conn.send("exit")
+            conn.close()
+            break
+
+
+def as_url(s):
+    rslt=re.search(MHURL, s)
+    return imupdate( default={"protocol":"ssh"}, value=rslt.groupdict() ) if rslt else None
+
+@traclog
+def as_csv(parser,s):
+    if len(s.split(',')) >1:
+        return [parser(x) for x in  s.split(',')]
+    else:
+        return [parser(s)]
+
+def as_json(parser,s):
+    logger.debug(s)
+    import json
+    try:
+        return [parser(x) for x in  json.loads(s)]
+    except ValueError as e:
+        return [parser(s)]
+
+def emptyque(que):
+    while not que.empty():
+        que.get()
+        que.task_done()
+    que.join()
+
+def main(opts):
+    logger.debug("{0}".format(opts))
+    done = multiprocessing.Value('b', False)
+    procs = []
+    for parms in [as_csv(as_url, arg) for arg in opts["args"]]:
+        que = multiprocessing.JoinableQueue()
+        procs.append((multiprocessing.Process(target=workerloop, args=(que,done,parms)), que))
+    
+    for p in procs:
+        p[0].daemon=True
+        p[0].start()
+
+    try:
+        if opts["cmd"]:
+            for l in [ "{0}\n".format(opts["cmd"]), "exit\n"]:
+                logger.debug("{0}".format(l.strip()))
+                for p in procs:
+                    p[1].put("{0}".format(l))
+            done.value=True 
+            while True:        
+                deadps = [i for (i,p) in enumerate(procs) if not p[0].is_alive()]
+                for i in deadps:
+                    procs[i][0].join()
+                procs=[p for (i,p) in enumerate(procs) if not i in deadps]
+                if not procs: break
+                time.sleep(1)
+            logger.debug("done")
+            return
+
+   
+        while True:
+            l=sys.stdin.readline()
+            logger.debug("{0}".format(l.strip()))
+            deadps = [i for (i,p) in enumerate(procs) if not p[0].is_alive()]
+            for i in deadps:
+                procs[i][0].join()
+                emptyque(procs[i][1])
+            procs=[p for (i,p) in enumerate(procs) if not i in deadps]
+            if not procs: break
+            for p in procs:
+                p[1].put("{0}".format(l))
+        logger.debug("done")        
+    except KeyboardInterrupt as e:
+        logger.error("main: KeyboardInterrupt")
+        done.value=True
+        while True:
+            deadps = [i for (i,p) in enumerate(procs) if not p[0].is_alive()]
+            for i in deadps:
+                procs[i][0].join()
+                emptyque(procs[i][1])
+            procs=[p for (i,p) in enumerate(procs) if not i in deadps]
+            if not procs: break
+            time.sleep(1)
+    except Exception as e:
+        logger.error("main: not defined exception !!! {0}".format(e))
+        done.value=True
+        while True:
+            deadps = [i for (i,p) in enumerate(procs) if not p[0].is_alive()]
+            for i in deadps:
+                procs[i][0].join()
+                emptyque(procs[i][1])
+            procs=[p for (i,p) in enumerate(procs) if not i in deadps]
+            if not procs: break
+            time.sleep(1)
+
+
+
+
+def parsed_opts():
+    import optparse
+    import os
+
+    opt = optparse.OptionParser()
+    opt.add_option("-p", "--prof", default=False, action="store_true", help="get profile [default: %default]" )
+    opt.add_option("-L", "--loglevel", default=15, type="int", help="15:info, 10:debug, 5:trace [default: %default]" )
+    opt.add_option("-c", "--cmd", default="", help="[default: %default]" )
+    (opts, args)= opt.parse_args()
+    return dict(vars(opts).items() + [("args", args)])
+
+if __name__ == '__main__':
+
+    opts = parsed_opts()
+    logger.setLevel(opts['loglevel'])
+    if opts['prof']:
+      import cProfile
+      cProfile.run('main(opts)')
+      sys.exit(0)
+    main(opts)

@@ -1,0 +1,18 @@
+#!/bin/bash
+USAGE="Usage: $(basename $0) <interval> <\"dirpattern\"> [\"dirpattern\"] ..."
+
+if [ $# -lt 1 ]; then
+  echo ${USAGE}
+  exit 1
+fi
+
+interval="${1:-10}"
+targetdirs="${@:2}"
+
+echo "targetdirs=${targetdirs}"
+
+while true;do
+    prefix="$(date +%Y-%m-%dT%H:%M:%S) $(hostname)"
+    du -sk ${targetdirs} | sed -e "s/^\s*\(\S\+\)\s\+\(\/*\([^/]\+\/\)\{0,\}[^/-]\+\)\(-[0-9a-f]\+\)\{0,\}/${prefix} \2 \1/"
+    sleep ${interval}
+done

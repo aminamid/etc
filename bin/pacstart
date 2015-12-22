@@ -1,9 +1,8 @@
 #!/bin/bash
 
 testname=${1:-$(date +test%Y%m%d%H%M%S)}
-interval=${2:-60}
-targetdir=${3:-/imail}
-password=${4}
+interval=${2:-10}
+password=${3}
 
 pactmp=$(dirname ${TOOL_ROOT})
 
@@ -11,7 +10,7 @@ echo "testname:" ${testname}
 echo "interval:" ${interval}
 
 nohup paracmd -t ${pactmp} -n 3 -d pacmon -w "${password}" -l \
-"psar -i ${interval} -t ${testname}" \
-"psps -i ${interval} -t ${testname}" \
-"pdsz ${targetdir} ${testname} ${interval}" \
+"psar -i ${interval} -t ${testname}" -l \
+"psps -i ${interval} -t ${testname}" -l \
+"pshs ${testname} ${interval}" \
 "" &

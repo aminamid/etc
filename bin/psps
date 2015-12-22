@@ -213,7 +213,7 @@ def main(opts):
          logger.error("{0} is already exists".format(filename))
          sys.exit(-1)
 
-    f=open("{0}/{1}.sps".format(testdir,hostname),"wba")
+    f=open("{0}/{1}.sps".format(testdir,hostname),"wba") if opts["log_to_file"] else sys.stdout
 
     state={"tags":json.loads(opts["tags"]),"values":json.loads(opts["values"]),"hostname":hostname}
     timekeeper=mtimekeeper(interval=opts['interval'], init=time.time(), maxcount=opts['count'])
@@ -240,6 +240,7 @@ def parsed_opts():
     opt.add_option("-V", "--values", default='[["ppid","{0}"],["cpu","{0:.2f}"],["usr","{0:.2f}"],["sys","{0:.2f}"],["num_threads","{0}"],["VmSize","{0}"],["VmRSS","{0}"],["cmdline","{0}"]]', help="set column names of values as json [default: %default]" )
     opt.add_option("-d", "--directory", default=os.getcwd() if not "TOOL_ROOT" in os.environ else "{0}/pacdat".format(os.path.dirname(os.environ["TOOL_ROOT"])), help="[default: %default]" )
     opt.add_option("-t", "--testname", default=datetime.datetime.now().strftime("pac%Y%m%d%H%M%S"), help="[default: %default]" )
+    opt.add_option("-l", "--log_to_file", default=False, action="store_true", help="[default: %default]" )
 
 
 

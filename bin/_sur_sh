@@ -1,0 +1,21 @@
+#!/bin/bash
+testname=${1:-$(date +test%Y%m%d%H%M%S)}
+interval=${2:-10}
+
+pacdir="$(dirname ${TOOL_ROOT})/pacdat"
+
+if [ ! -d "${pacdir}/${testname}" ]
+then
+    mkdir -p ${pacdir}/${testname}
+fi
+
+outputfile=${pacdir}/${testname}/$(hostname).files
+
+echo "testname:" ${testname}
+echo "interval:" ${interval}
+
+while true; do
+  _sur_cas ${interval} >> ${pacdir}/${testname}/$(hostname).cas
+  _sur_du  ${interval} >> ${pacdir}/${testname}/$(hostname).sdu
+  sleep ${interval}
+done

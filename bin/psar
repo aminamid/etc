@@ -14,16 +14,26 @@ import functools
 from signal import signal, SIGPIPE, SIG_DFL
 signal(SIGPIPE,SIG_DFL)
 
-from logging import getLogger, basicConfig
-logger = getLogger(__name__)
-logcfg = {
-   #"format": "%(asctime)s.%(msecs).03d %(process)d %(thread)x %(levelname).4s;%(module)s(%(lineno)d/%(funcName)s) %(message)s",
-   "format": "%(message)s",
-   "datefmt": "%Y/%m/%dT%H:%M:%S",
-   "level": 20,
-   "stream": sys.stderr,
-}
-basicConfig(**logcfg)
+def concat( ll ):
+    return list(itertools.chain(*ll))
+
+def nowstr(fmt="%Y-%m-%dT%H:%M:%S"):
+        return datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+
+##  logging
+def change_state(obj, method_arglist_tpls):
+    for m_as in method_arglist_tpls:
+        getattr(obj, m_as[0])(*m_as[1])
+    return obj
+
+from logging import getLogger, StreamHandler, Formatter
+def loginit(logname, format="%(message)s", stream=sys.stderr, level=15, datefmt="%Y/%m/%dT%H:%M:%S" ):
+    return change_state(getLogger(logname), [
+        ("setLevel", [level]),
+        ("addHandler", [change_state(
+            StreamHandler(stream),[("setFormatter", [Formatter(fmt=format,datefmt=datefmt)])]
+        )])
+      ])
 
 def traclog( f ):
     @functools.wraps(f)
@@ -34,8 +44,16 @@ def traclog( f ):
         return result
     return _f
 
-def concat( ll ):
-    return list(itertools.chain(*ll))
+loggercfg = {
+  "level": 20,
+}
+logstdcfg = {
+  "stream": sys.stdout,
+  "level": 15,
+}
+
+logger = loginit(__name__,**loggercfg)
+logstd = loginit("std",**logstdcfg)
 
 reg_strs=[
     #    Linux 2.6.32-431.17.1.el6.x86_64 (jpn-zaq50) \t06/23/2015 \t_x86_64_\t(4 CPU)
@@ -190,7 +208,7 @@ def filtered_out(i_d,i_t,cfg):
         del(dat[otime])
     return
 
-def loop_cfg(i_d,i_t,cfg,testdir,hostname):
+def loop_cfg(i_d,i_t,cfg,testdir,hostname,log_to_file):
     list1=concat(cfg[0].values())
     list2=concat(cfg[1].values())
     i_filtered=loop_filtered(i_d,list1,list2)
@@ -205,7 +223,8 @@ def loop_cfg(i_d,i_t,cfg,testdir,hostname):
         if os.path.exists(path):
             logger.error("{0} is already exists".format(path))
             sys.exit(-1)
-    output_files=dict([(k,open("{0}/{1}.{2}".format(testdir,hostname,k),"wab")) for k in cfg[0].keys()+cfg[1].keys()])
+    if log_to_file:
+        output_files=dict([(k,open("{0}/{1}.{2}".format(testdir,hostname,k),"wab")) for k in cfg[0].keys()+cfg[1].keys()])
     while True:
         for (t,l) in i_filtered:
             t_changed = i_t.send(t)
@@ -222,19 +241,28 @@ def loop_cfg(i_d,i_t,cfg,testdir,hostname):
             logger.info(" ".join(["time"]+labels))
             for (k,v) in cfg[0].items():
                 output_groups[k]=[l for l in labels if l in v]
-                output_files[k].write(" ".join(["time"]+output_groups[k]))
-                output_files[k].write("\n")
-                output_files[k].flush()
+                if log_to_file:
+                    output_files[k].write(" ".join(["time"]+output_groups[k]))
+                    output_files[k].write("\n")
+                    output_files[k].flush()
+                    continue
+                logstd.info(" ".join(["time","group"]+output_groups[k]))
             for (k,v) in cfg[1].items():
                 output_groups[k]=[l for l in labels if l.split(".")[0] in v]
-                output_files[k].write(" ".join(["time"]+output_groups[k]))
-                output_files[k].write("\n")
-                output_files[k].flush()
+                if log_to_file:
+                    output_files[k].write(" ".join(["time"]+output_groups[k]))
+                    output_files[k].write("\n")
+                    output_files[k].flush()
+                    continue
+                logstd.info(" ".join(["time",k]+output_groups[k]))
         logger.info(" ".join([otime] + [dat[otime][k] for k in labels]))
         for (k,v) in output_groups.items():
-            output_files[k].write(" ".join([otime]+[dat[otime][dk] for dk in v]))
-            output_files[k].write("\n")
-            output_files[k].flush()
+            if log_to_file:
+                output_files[k].write(" ".join([otime]+[dat[otime][dk] for dk in v]))
+                output_files[k].write("\n")
+                output_files[k].flush()
+                continue
+            logstd.info(" ".join([otime,k,]+[dat[otime][dk] for dk in v]))
         del(dat[otime])
     return
 
@@ -281,7 +309,7 @@ def main(opts):
         simple_out(i_subkey,timechk)
         return
 
-    loop_cfg(i_subkey,timechk,json.loads(open(opts["cfg"]).read()),testdir,hostname)
+    loop_cfg(i_subkey,timechk,json.loads(open(opts["cfg"]).read()),testdir,hostname,opts["log_to_file"])
 
 
 def parsed_opts():
@@ -297,6 +325,7 @@ def parsed_opts():
     opt.add_option("-s", "--subkeys", default="CPU,DEV,IFACE", help="[default: %default]" )
     opt.add_option("-f", "--cfg", default="{0}/psar.json".format(os.path.abspath(os.path.dirname(__file__))), help="[default: %default]" )
     opt.add_option("-d", "--directory", default=os.getcwd() if not "TOOL_ROOT" in os.environ else "{0}/pacdat".format(os.path.dirname(os.environ["TOOL_ROOT"])), help="[default: %default]" )
+    opt.add_option("-l", "--log_to_file", default=False, action="store_true", help="[default: %default]" )
 
     opt.add_option("-t", "--testname", default=datetime.datetime.now().strftime("pac%Y%m%d%H%M%S"), help="[default: %default]" )
     (opts, args)= opt.parse_args()
