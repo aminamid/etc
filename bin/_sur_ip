@@ -11,9 +11,4 @@ echo "dirname:" ${dirname}
 echo "interval:" ${interval}
 echo "results is storing to ${dirname}"
 
-while true;do
-  sudo -u csdr01 bash -l -s < _sur_cas >> ${dirname}/$(hostname).cas
-  sudo -u root   bash -l -s < _sur_du  >> ${dirname}/$(hostname).sdu
-  sleep ${interval}
-done
-
+sudo -u root bash -l -s < _smpl_tcpdump >> ${dirname}/$(hostname).ip

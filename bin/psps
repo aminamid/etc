@@ -201,19 +201,17 @@ def cmdline_wrapper(cmdline):
 
 def main(opts):
     hostname=os.uname()[1]
-    testname = opts["testname"]
-    testdir="{0}/{1}".format(opts["directory"],testname)
     try:
-        os.makedirs(testdir)
+        os.makedirs(opts["directory"])
     except OSError as e:
         if e.errno == 17: pass
 
-    filename="{0}/{1}.sps".format(testdir,hostname)
+    filename="{0}/{1}.sps".format(opts["directory"],hostname)
     if os.path.exists(filename):
          logger.error("{0} is already exists".format(filename))
          sys.exit(-1)
 
-    f=open("{0}/{1}.sps".format(testdir,hostname),"wba") if opts["log_to_file"] else sys.stdout
+    f=open("{0}/{1}.sps".format(opts["directory"],hostname),"wba") if opts["log_to_file"] else sys.stdout
 
     state={"tags":json.loads(opts["tags"]),"values":json.loads(opts["values"]),"hostname":hostname}
     timekeeper=mtimekeeper(interval=opts['interval'], init=time.time(), maxcount=opts['count'])
@@ -238,8 +236,8 @@ def parsed_opts():
     opt.add_option("-i", "--interval", default=1, type="int", help="interval to sampling [default: %default]" )
     opt.add_option("-T", "--tags", default='["Uid","comm","pid"]', help="set column names of tags as json [default: %default]" )
     opt.add_option("-V", "--values", default='[["ppid","{0}"],["cpu","{0:.2f}"],["usr","{0:.2f}"],["sys","{0:.2f}"],["num_threads","{0}"],["VmSize","{0}"],["VmRSS","{0}"],["cmdline","{0}"]]', help="set column names of values as json [default: %default]" )
-    opt.add_option("-d", "--directory", default=os.getcwd() if not "TOOL_ROOT" in os.environ else "{0}/pacdat".format(os.path.dirname(os.environ["TOOL_ROOT"])), help="[default: %default]" )
-    opt.add_option("-t", "--testname", default=datetime.datetime.now().strftime("pac%Y%m%d%H%M%S"), help="[default: %default]" )
+    opt.add_option("-d", "--directory", default="{0}/pacdat/{1}".format(os.environ["PWD"] if not "TOOL_ROOT" in os.environ else os.environ["TOOL_ROOT"], datetime.datetime.now().strftime("pac%Y%m%d%H%M%S")), help="[default: %default]" )
+
     opt.add_option("-l", "--log_to_file", default=False, action="store_true", help="[default: %default]" )
 
 
