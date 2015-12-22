@@ -208,6 +208,7 @@ def filtered_out(i_d,i_t,cfg):
         del(dat[otime])
     return
 
+@traclog
 def loop_cfg(i_d,i_t,cfg,testdir,hostname,log_to_file):
     list1=concat(cfg[0].values())
     list2=concat(cfg[1].values())
@@ -219,11 +220,11 @@ def loop_cfg(i_d,i_t,cfg,testdir,hostname,log_to_file):
     subindex=None
     labels=[]
     output_groups={}
-    for path in ["{0}/{1}.{2}".format(testdir,hostname,k) for k in cfg[0].keys()+cfg[1].keys()]:
-        if os.path.exists(path):
-            logger.error("{0} is already exists".format(path))
-            sys.exit(-1)
     if log_to_file:
+        for path in ["{0}/{1}.{2}".format(testdir,hostname,k) for k in cfg[0].keys()+cfg[1].keys()]:
+            if os.path.exists(path):
+                logger.error("{0} is already exists".format(path))
+                sys.exit(-1)
         output_files=dict([(k,open("{0}/{1}.{2}".format(testdir,hostname,k),"wab")) for k in cfg[0].keys()+cfg[1].keys()])
     while True:
         for (t,l) in i_filtered:

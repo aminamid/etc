@@ -16,8 +16,9 @@ echo "testname:" ${testname}
 echo "interval:" ${interval}
 echo "results is storing to ${pacdir}"
 
-nohup paracmd -t ${pactmp} -n 3 -d pacmon -w "${password}" -l \
-"psar -i ${interval} -d ${pacdir}" -l \
-"psps -i ${interval} -d ${pacdir}" -l \
-"_sur_sh ${interval} ${pacdir}" \
+nohup paracmd -t ${pactmp} -n 4 -d pacmon -w "${password}" -l \
+"psar -i ${interval} -d ${pacdir} -l "  \
+"psps -i ${interval} -d ${pacdir} -l "  \
+"_sur_sh ${interval} ${pacdir} " \
+"_sur_ip ${interval} ${pacdir} " \
 "" &
