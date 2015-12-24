@@ -1,5 +1,6 @@
 #/bin/bash
 cmdtb="nodetool tablestats system keyspacedirectory"
+cmdcp="nodetool compactionstats"
 cmdtp="nodetool tpstats"
 cmdgc="nodetool gcstats"
 cmdif="nodetool info"
@@ -21,3 +22,4 @@ eval ${cmdhe} 2>&1 | grep -v -e "^$" | sed -e 's/^/'"${prefix}"' histograms tbl_
 eval ${cmdhs} 2>&1 | grep -v -e "^$" | sed -e 's/^/'"${prefix}"' histograms tbl_sequence /'
 eval ${cmdha} 2>&1 | grep -v -e "^$" | sed -e 's/^/'"${prefix}"' histograms index_tbl_acirule /'
 eval ${cmdhn} 2>&1 | grep -v -e "^$" | sed -e 's/^/'"${prefix}"' histograms index_tbl_pushnotifyinfo /'
+eval ${cmdcp} 2>&1 | grep -v -e "^$" | sed -e 's/^/'"${prefix}"' compactionstats /'

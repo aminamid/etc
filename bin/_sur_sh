@@ -2,6 +2,21 @@
 interval=${1:-10}
 dirname=${2:-pacdat/$(date +test%Y%m%d%H%M%S)}
 
+abs_dirname() {
+  local cwd="$(pwd)"
+  local path="$1"
+
+  while [ -n "$path" ]; do
+    cd "${path%/*}"
+    local name="${path##*/}"
+    path="$(readlink "$name" || true)"
+  done
+
+  pwd -P
+  cd "$cwd"
+}
+script_dir="$(abs_dirname "$0")"
+
 if [ ! -d "${dirname}" ]
 then
     mkdir -p ${dirname}
@@ -12,8 +27,10 @@ echo "interval:" ${interval}
 echo "results is storing to ${dirname}"
 
 while true;do
-  sudo -u csdr01 bash -l -s < _sur_cas >> ${dirname}/$(hostname).cas
-  sudo -u root   bash -l -s < _sur_du  >> ${dirname}/$(hostname).sdu
+  touch ${dirname}/$(hostname).cas
+  touch ${dirname}/$(hostname).sdu
+  sudo -u csdr01 bash -l -s < ${script_dir}/_sur_cas >> ${dirname}/$(hostname).cas
+  sudo -u root   bash -l -s < ${script_dir}/_sur_du  >> ${dirname}/$(hostname).sdu
   sleep ${interval}
 done
 

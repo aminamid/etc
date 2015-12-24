@@ -2,6 +2,21 @@
 interval=${1:-10}
 dirname=${2:-pacdat/$(date +test%Y%m%d%H%M%S)}
 
+abs_dirname() {
+  local cwd="$(pwd)"
+  local path="$1"
+
+  while [ -n "$path" ]; do
+    cd "${path%/*}"
+    local name="${path##*/}"
+    path="$(readlink "$name" || true)"
+  done
+
+  pwd -P
+  cd "$cwd"
+}
+script_dir="$(abs_dirname "$0")"
+
 if [ ! -d "${dirname}" ]
 then
     mkdir -p ${dirname}
@@ -10,5 +25,5 @@ fi
 echo "dirname:" ${dirname}
 echo "interval:" ${interval}
 echo "results is storing to ${dirname}"
-
-sudo -u root bash -l -s < _smpl_tcpdump >> ${dirname}/$(hostname).ip
+touch ${dirname}/$(hostname).ip
+sudo -u root bash -l -s < ${script_dir}/_smpl_tcpdump${interval} >> ${dirname}/$(hostname).ip

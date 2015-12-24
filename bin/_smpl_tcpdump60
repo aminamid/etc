@@ -1,0 +1,1 @@
+prefix=$(hostname) ; tcpdump -nnn -i any -s 68 -tttt -q -p ether proto \\ip 2>&1 | sed -e 's/^\(.\{10\}\).\(.\{5\}\).\{14\}\([^:]*\): \(.*\) \(\S*\)$/\1T\2 \5 \3 \4/' | awk '{split($3,s,"."); split($5,d,"."); l[s[1]"."s[2]"."s[3]"."s[4]" "d[1]"."d[2]"."d[3]"."d[4]]+=$2} now!=$1 {if (now!=0) {for (k in l){print now":00 '${prefix}'",k,l[k]}; delete l;}; now=$1}'
