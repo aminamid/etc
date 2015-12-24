@@ -1,0 +1,6 @@
+#!/bin/bash
+l="$(cat ${@:2})"
+args="$(for h in ${l}; do echo $1@${h}; done)"
+tos=$(eval echo ${args})
+for to in ${tos}; do cmd="rsync -a --exclude=*.pyc ${TOOL_ROOT}/ ${to}:${TOOL_ROOT}/"; echo ${cmd}; ${cmd}; done
+
